@@ -5924,9 +5924,13 @@ public abstract class AbstractUserStoreManager implements UserStoreManager, Pagi
                     log.error(message);
                 }
             } else if (addAdmin) {
+                String[] roleList = null;
                 try {
-                    this.doAddUser(adminUserName, realmConfig.getAdminPassword(),
-                            null, null, null, false);
+                    if (roleExist) {
+                        roleList = new String[]{getAdminRoleName()};
+                    }
+                    this.doAddUser(adminUserName, realmConfig.getAdminPassword(), roleList,
+                            null, null, false);
                 } catch (Exception e) {
                     String message = "Admin user has not been created. " +
                             "Error occurs while creating Admin user in primary user store.";

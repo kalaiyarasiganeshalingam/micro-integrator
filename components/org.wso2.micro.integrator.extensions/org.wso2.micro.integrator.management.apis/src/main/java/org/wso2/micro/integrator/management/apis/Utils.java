@@ -20,7 +20,9 @@ package org.wso2.micro.integrator.management.apis;
 
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
+import org.apache.axiom.om.OMElement;
 import org.apache.axiom.om.OMNode;
+import org.apache.axiom.om.impl.builder.StAXOMBuilder;
 import org.apache.axiom.om.impl.llom.OMTextImpl;
 import org.apache.axis2.AxisFault;
 import org.apache.commons.io.IOUtils;
@@ -37,6 +39,9 @@ import org.ops4j.pax.logging.PaxLoggingConstants;
 import org.osgi.service.cm.Configuration;
 import org.osgi.service.cm.ConfigurationAdmin;
 import org.wso2.micro.core.util.AuditLogger;
+import org.wso2.micro.core.util.CarbonException;
+import org.wso2.micro.integrator.core.internal.MicroIntegratorBaseConstants;
+import org.wso2.micro.integrator.core.util.MicroIntegratorBaseUtils;
 import org.wso2.micro.integrator.initializer.utils.ConfigurationHolder;
 import org.wso2.micro.integrator.registry.MicroIntegratorRegistry;
 import org.wso2.micro.integrator.security.MicroIntegratorSecurityUtils;
@@ -48,8 +53,10 @@ import org.wso2.micro.integrator.security.user.core.common.AbstractUserStoreMana
 import org.wso2.micro.service.mgt.ServiceAdmin;
 
 import javax.xml.namespace.QName;
+import javax.xml.stream.XMLStreamException;
 import java.io.File;
 import java.io.FileInputStream;
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UnsupportedEncodingException;
@@ -81,6 +88,7 @@ import static org.wso2.micro.integrator.registry.MicroIntegratorRegistryConstant
 public class Utils {
 
     private static final Log LOG = LogFactory.getLog(Utils.class);
+    public static final String USER_MGT_XML_PATH = "wso2.user.mgt.xml";
 
     public static String getQueryParameter(MessageContext messageContext, String key) {
 
@@ -686,5 +694,62 @@ public class Utils {
             return correctedPath.substring(correctedPath.lastIndexOf(URL_SEPARATOR) + 1, correctedPath.length());
         }
         return "";
+    }
+
+    static String getSuperAdminUserName() {
+        InputStream inStream = null;
+        try {
+            String userMgt = getUserMgtXMLPath();
+            if (userMgt != null) {
+                File userMgtXml = new File(userMgt);
+                if (!userMgtXml.exists()) {
+                    LOG.error("Error occurred while getting username of super admin: User-mgt.xml is not found");
+                    return null;
+                }
+                inStream = new FileInputStream(userMgt);
+                StAXOMBuilder builder = new StAXOMBuilder(inStream);
+                OMElement configuration =  builder.getDocumentElement();
+
+                return configuration.getFirstChildWithName(new QName("Realm")).
+                        getFirstChildWithName(new QName("Configuration")).
+                        getFirstChildWithName(new QName("AdminUser")).
+                        getFirstChildWithName(new QName("UserName")).getText();
+            }
+            return null;
+        } catch (FileNotFoundException | XMLStreamException e) {
+            LOG.error("Error occurred while getting username of super admin: " + e.getMessage());
+            return null;
+        }  finally {
+            if (inStream != null) {
+                try {
+                    inStream.close();
+                } catch (IOException e) {
+                    LOG.error("Couldn't close the InputStream" + e.getMessage(), e);
+                }
+            }
+        }
+    }
+    private static String getUserMgtXMLPath() {
+        String carbonHome = getCarbonHome();
+        if (carbonHome != null) {
+            String configPath = System.getProperty(USER_MGT_XML_PATH);
+            if (configPath == null) {
+                configPath = getCarbonConfigDirPath() + File.separator + "user-mgt.xml";
+            }
+            return configPath;
+        }
+        return null;
+    }
+
+    private static String getCarbonConfigDirPath() {
+
+        String carbonConfigDirPath = System.getProperty(MicroIntegratorBaseConstants.CARBON_CONFIG_DIR_PATH);
+        if (carbonConfigDirPath == null) {
+            carbonConfigDirPath = System.getenv(MicroIntegratorBaseConstants.CARBON_CONFIG_DIR_PATH_ENV);
+            if (carbonConfigDirPath == null) {
+                return getCarbonHome() + File.separator + "repository" + File.separator + "conf";
+            }
+        }
+        return carbonConfigDirPath;
     }
 }

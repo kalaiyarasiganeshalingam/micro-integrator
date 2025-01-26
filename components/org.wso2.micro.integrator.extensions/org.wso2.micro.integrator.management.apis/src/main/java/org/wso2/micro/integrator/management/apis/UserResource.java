@@ -62,12 +62,13 @@ public class UserResource implements MiApiResource {
 
     // HTTP method types supported by the resource
     protected Set<String> methods;
-
+    private String superAdminUsername = "";
     public UserResource() {
         methods = new HashSet<>();
         methods.add(Constants.HTTP_GET);
         methods.add(Constants.HTTP_DELETE);
         methods.add(Constants.HTTP_METHOD_PATCH);
+        superAdminUsername = Utils.getSuperAdminUserName();
     }
 
     @Override
@@ -163,7 +164,7 @@ public class UserResource implements MiApiResource {
         UserStoreManager userStoreManager = Utils.getUserStore(domain);
         String[] roles = userStoreManager.getRoleListOfUser(user);
 
-        if (ADMIN.equals(performedBy)) {
+        if (this.superAdminUsername.equals(performedBy)) {
             userStoreManager.deleteUser(user);
         } else if (!Arrays.asList(roles).contains(ADMIN)) {
             userStoreManager.deleteUser(user);
@@ -214,7 +215,7 @@ public class UserResource implements MiApiResource {
                                 throw new UserStoreException("The current user password cannot be null.");
                             }
                             userStoreManager.updateCredential(user, newPassword, oldPassword);
-                        } else if (ADMIN.equals(performedBy)) {
+                        } else if (this.superAdminUsername.equals(performedBy)) {
                             userStoreManager.updateCredentialByAdmin(user, newPassword);
                         } else if (Arrays.asList(performerRoles).contains(ADMIN) &&
                                 !Arrays.asList(userRoles).contains(ADMIN)) {
