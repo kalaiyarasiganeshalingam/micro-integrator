@@ -38,6 +38,7 @@ import org.json.JSONObject;
 import org.ops4j.pax.logging.PaxLoggingConstants;
 import org.osgi.service.cm.Configuration;
 import org.osgi.service.cm.ConfigurationAdmin;
+import org.osgi.service.useradmin.User;
 import org.wso2.micro.core.util.AuditLogger;
 import org.wso2.micro.core.util.CarbonException;
 import org.wso2.micro.integrator.core.internal.MicroIntegratorBaseConstants;
@@ -60,6 +61,7 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UnsupportedEncodingException;
+import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Base64;
@@ -89,6 +91,13 @@ public class Utils {
 
     private static final Log LOG = LogFactory.getLog(Utils.class);
     public static final String USER_MGT_XML_PATH = "wso2.user.mgt.xml";
+    public static final String REALM = "Realm";
+    public static final String CONFIGURATION = "Configuration";
+    public static final String ADMIN_USER = "AdminUser";
+    public static final String USERNAME = "UserName";
+    public static final String REPOSITORY = "repository";
+    public static final String CONF = "conf";
+    public static final String MGT_FILE_NAME = "user-mgt.xml";
 
     public static String getQueryParameter(MessageContext messageContext, String key) {
 
@@ -697,36 +706,26 @@ public class Utils {
     }
 
     static String getSuperAdminUserName() {
-        InputStream inStream = null;
-        try {
-            String userMgt = getUserMgtXMLPath();
-            if (userMgt != null) {
-                File userMgtXml = new File(userMgt);
-                if (!userMgtXml.exists()) {
-                    LOG.error("Error occurred while getting username of super admin: User-mgt.xml is not found");
-                    return null;
-                }
-                inStream = new FileInputStream(userMgt);
+        String userMgt = getUserMgtXMLPath();
+        if (userMgt != null) {
+            File userMgtXml = new File(userMgt);
+            if (!userMgtXml.exists()) {
+                LOG.error("Error occurred while getting username of super admin: User-mgt.xml is not found");
+                return null;
+            }
+            try (InputStream inStream = Files.newInputStream(Paths.get(userMgt))) {
                 StAXOMBuilder builder = new StAXOMBuilder(inStream);
                 OMElement configuration =  builder.getDocumentElement();
-
-                return configuration.getFirstChildWithName(new QName("Realm")).
-                        getFirstChildWithName(new QName("Configuration")).
-                        getFirstChildWithName(new QName("AdminUser")).
-                        getFirstChildWithName(new QName("UserName")).getText();
+                return configuration.getFirstChildWithName(new QName(REALM)).
+                        getFirstChildWithName(new QName(CONFIGURATION)).
+                        getFirstChildWithName(new QName(ADMIN_USER)).
+                        getFirstChildWithName(new QName(USERNAME)).getText();
+            } catch (XMLStreamException | IOException e) {
+                LOG.error("Error occurred while getting username of super admin: " + e.getMessage());
+                return null;
             }
+        } else {
             return null;
-        } catch (FileNotFoundException | XMLStreamException e) {
-            LOG.error("Error occurred while getting username of super admin: " + e.getMessage());
-            return null;
-        }  finally {
-            if (inStream != null) {
-                try {
-                    inStream.close();
-                } catch (IOException e) {
-                    LOG.error("Couldn't close the InputStream" + e.getMessage(), e);
-                }
-            }
         }
     }
     private static String getUserMgtXMLPath() {
@@ -734,7 +733,7 @@ public class Utils {
         if (carbonHome != null) {
             String configPath = System.getProperty(USER_MGT_XML_PATH);
             if (configPath == null) {
-                configPath = getCarbonConfigDirPath() + File.separator + "user-mgt.xml";
+                configPath = Paths.get(getCarbonConfigDirPath() , MGT_FILE_NAME).toString();
             }
             return configPath;
         }
@@ -742,12 +741,11 @@ public class Utils {
     }
 
     private static String getCarbonConfigDirPath() {
-
         String carbonConfigDirPath = System.getProperty(MicroIntegratorBaseConstants.CARBON_CONFIG_DIR_PATH);
         if (carbonConfigDirPath == null) {
             carbonConfigDirPath = System.getenv(MicroIntegratorBaseConstants.CARBON_CONFIG_DIR_PATH_ENV);
             if (carbonConfigDirPath == null) {
-                return getCarbonHome() + File.separator + "repository" + File.separator + "conf";
+                return Paths.get(getCarbonHome(), REPOSITORY, CONF).toString();
             }
         }
         return carbonConfigDirPath;
