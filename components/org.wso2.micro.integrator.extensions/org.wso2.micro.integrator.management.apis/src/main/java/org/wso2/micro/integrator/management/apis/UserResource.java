@@ -30,6 +30,7 @@ import org.wso2.micro.core.util.StringUtils;
 import org.wso2.micro.integrator.management.apis.security.handler.SecurityUtils;
 import org.wso2.micro.integrator.security.user.api.UserStoreException;
 import org.wso2.micro.integrator.security.user.api.UserStoreManager;
+import org.wso2.micro.integrator.security.user.core.util.UserCoreUtil;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -62,13 +63,12 @@ public class UserResource implements MiApiResource {
 
     // HTTP method types supported by the resource
     protected Set<String> methods;
-    private String superAdminUsername = "";
+
     public UserResource() {
         methods = new HashSet<>();
         methods.add(Constants.HTTP_GET);
         methods.add(Constants.HTTP_DELETE);
         methods.add(Constants.HTTP_METHOD_PATCH);
-        superAdminUsername = Utils.getSuperAdminUserName();
     }
 
     @Override
@@ -163,8 +163,7 @@ public class UserResource implements MiApiResource {
         }
         UserStoreManager userStoreManager = Utils.getUserStore(domain);
         String[] roles = userStoreManager.getRoleListOfUser(user);
-
-        if (this.superAdminUsername.equals(performedBy)) {
+        if (UserCoreUtil.isPrimaryAdminUser(performedBy, Utils.getRealmConfiguration())) {
             userStoreManager.deleteUser(user);
         } else if (!Arrays.asList(roles).contains(ADMIN)) {
             userStoreManager.deleteUser(user);
@@ -215,7 +214,7 @@ public class UserResource implements MiApiResource {
                                 throw new UserStoreException("The current user password cannot be null.");
                             }
                             userStoreManager.updateCredential(user, newPassword, oldPassword);
-                        } else if (this.superAdminUsername.equals(performedBy)) {
+                        } else if (UserCoreUtil.isPrimaryAdminUser(performedBy, Utils.getRealmConfiguration())) {
                             userStoreManager.updateCredentialByAdmin(user, newPassword);
                         } else if (Arrays.asList(performerRoles).contains(ADMIN) &&
                                 !Arrays.asList(userRoles).contains(ADMIN)) {
